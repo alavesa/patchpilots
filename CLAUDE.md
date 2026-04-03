@@ -2,9 +2,9 @@
 
 ## Project overview
 
-PatchPilots is a CLI tool with 7 AI agents that review and improve code automatically. Built with TypeScript + Node.js, powered by Claude API.
+PatchPilots is a CLI tool with 8 AI agents that review and improve code automatically. Built with TypeScript + Node.js, powered by Claude API.
 
-**Agents:** Planner, Reviewer, Coder, Tester, Docs, Security, Orchestrator.
+**Agents:** Planner, Reviewer, Coder, Tester, Docs, Security, Designer, Orchestrator.
 
 ## Commands
 
