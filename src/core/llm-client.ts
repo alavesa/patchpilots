@@ -23,12 +23,15 @@ export class LLMClient {
     this.defaultModel = defaultModel;
   }
 
+  private static MAX_RETRIES = 5;
+
   async chatStructured<T>(
     systemPrompt: string,
     userMessage: string,
     schema: z.ZodType<T>,
     options: ChatOptions,
     onToken?: (text: string) => void,
+    _retryCount = 0,
   ): Promise<LLMResponse<T>> {
     const model = options.model ?? this.defaultModel;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -95,9 +98,13 @@ export class LLMClient {
       };
     } catch (error) {
       if (error instanceof Anthropic.RateLimitError) {
-        log.warn("Rate limited — waiting 10s before retry...");
-        await new Promise((resolve) => setTimeout(resolve, 10_000));
-        return this.chatStructured(systemPrompt, userMessage, schema, options, onToken);
+        if (_retryCount >= LLMClient.MAX_RETRIES) {
+          throw new Error("Rate limited — max retries exceeded.");
+        }
+        const delay = Math.min(10_000 * 2 ** _retryCount, 60_000) + Math.random() * 1_000;
+        log.warn(`Rate limited — waiting ${Math.round(delay / 1000)}s before retry (${_retryCount + 1}/${LLMClient.MAX_RETRIES})...`);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        return this.chatStructured(systemPrompt, userMessage, schema, options, onToken, _retryCount + 1);
       }
       if (error instanceof Anthropic.AuthenticationError) {
         throw new Error("Invalid API key. Check your ANTHROPIC_API_KEY.");

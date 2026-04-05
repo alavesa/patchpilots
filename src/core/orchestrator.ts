@@ -1,5 +1,5 @@
 import { readFileSync, writeFileSync, copyFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { resolve, relative, isAbsolute } from "node:path";
 import { execSync } from "node:child_process";
 import { LLMClient } from "./llm-client.js";
 import { ReviewerAgent } from "../agents/reviewer.js";
@@ -17,6 +17,13 @@ import { CostTracker } from "../utils/cost.js";
 import { loadMemory, saveMemory, updateMemory, buildMemoryContext, formatMemoryStatus } from "../utils/memory.js";
 import type { PatchPilotsConfig } from "../types/index.js";
 import type { ReviewResult, CoderResult, TestResult, PlanResult, DocsResult, SecurityResult, DesignerResult, AuditResult } from "../types/review.js";
+
+function assertWithinBase(absPath: string, base: string): void {
+  const rel = relative(base, absPath);
+  if (rel.startsWith("..") || isAbsolute(rel)) {
+    throw new Error(`Path escape detected: ${absPath} is outside ${base}`);
+  }
+}
 
 export interface OrchestratorOptions {
   json?: boolean;
@@ -55,8 +62,10 @@ export class Orchestrator {
   }
 
   private applyPatches(coderResult: CoderResult, options: { backup?: boolean }): void {
+    const base = process.cwd();
     for (const file of coderResult.improvedFiles) {
       const absPath = resolve(file.path);
+      assertWithinBase(absPath, base);
       if (options.backup) {
         copyFileSync(absPath, absPath + ".bak");
         log.verbose(`Backed up ${file.path} → ${file.path}.bak`);
@@ -288,8 +297,10 @@ export class Orchestrator {
 
     // Write test files if requested
     if (options.write && testResult.testFiles.length > 0) {
+      const base = process.cwd();
       for (const file of testResult.testFiles) {
         const absPath = resolve(file.path);
+        assertWithinBase(absPath, base);
         writeFileSync(absPath, file.content, "utf-8");
         log.success(`Created ${file.path}`);
       }
@@ -351,8 +362,10 @@ export class Orchestrator {
 
     // Write documented files if requested
     if (options.write && docsResult.docs.length > 0) {
+      const base = process.cwd();
       for (const doc of docsResult.docs) {
         const absPath = resolve(doc.file);
+        assertWithinBase(absPath, base);
         if (options.backup) {
           copyFileSync(absPath, absPath + ".bak");
           log.verbose(`Backed up ${doc.file} → ${doc.file}.bak`);
@@ -653,12 +666,15 @@ export class Orchestrator {
 
     // Apply changes if --write
     if (options.write) {
+      const base = process.cwd();
       // Apply patches
       this.applyPatches(coderResult, options);
       // Write tests
       if (testResult) {
         for (const file of testResult.testFiles) {
-          writeFileSync(resolve(file.path), file.content, "utf-8");
+          const absPath = resolve(file.path);
+          assertWithinBase(absPath, base);
+          writeFileSync(absPath, file.content, "utf-8");
           log.success(`Created ${file.path}`);
         }
       }
@@ -666,6 +682,7 @@ export class Orchestrator {
       if (docsResult) {
         for (const doc of docsResult.docs) {
           const absPath = resolve(doc.file);
+          assertWithinBase(absPath, base);
           if (options.backup) copyFileSync(absPath, absPath + ".bak");
           writeFileSync(absPath, doc.content, "utf-8");
           log.success(`Documented ${doc.file}`);

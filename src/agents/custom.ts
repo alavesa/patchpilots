@@ -42,7 +42,7 @@ export class CustomAgent extends BaseAgent<ReviewResult> {
     return `You are a specialized code reviewer. Your job is to review code based on the following rules and guidelines:
 
 <REVIEW_RULES>
-${this.userPrompt}
+${this.userPrompt.replace(/<\/REVIEW_RULES>/gi, "")}
 </REVIEW_RULES>
 
 For each issue found, classify severity as:

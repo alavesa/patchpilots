@@ -4,11 +4,17 @@ import type { AgentContext, AgentResult, FileContent } from "../types/index.js";
 import { log } from "../utils/logger.js";
 import { type ModelRoutingConfig, DEFAULT_ROUTING, routeFiles, tierToModel, logRoutingSummary } from "../utils/model-router.js";
 
+function escapeXmlAttr(value: string): string {
+  return value.replace(/[<>"&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", '"': "&quot;", "&": "&amp;" })[c]!);
+}
+
 export function wrapUntrustedFile(path: string, language: string, content: string): string {
+  const safePath = escapeXmlAttr(path);
+  const safeLang = escapeXmlAttr(language);
   return [
-    `## File: ${path} (${language})`,
-    `<UNTRUSTED_FILE path="${path}">`,
-    "```" + language,
+    `## File: ${safePath} (${safeLang})`,
+    `<UNTRUSTED_FILE path="${safePath}">`,
+    "```" + safeLang,
     content,
     "```",
     "</UNTRUSTED_FILE>\n",
