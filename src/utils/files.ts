@@ -32,6 +32,14 @@ function inferLanguage(filePath: string): string {
   return LANGUAGE_MAP[extname(filePath)] ?? "plaintext";
 }
 
+function validateGlobPatterns(patterns: string[]): void {
+  for (const pattern of patterns) {
+    if (pattern.includes("..") || resolve(pattern) === pattern) {
+      throw new Error(`Unsafe glob pattern rejected: ${pattern}`);
+    }
+  }
+}
+
 export async function collectFiles(
   targetPath: string,
   config: PatchPilotsConfig
@@ -44,6 +52,9 @@ export async function collectFiles(
     return [{ path: relative(process.cwd(), absPath), content, language: inferLanguage(absPath) }];
   }
 
+  validateGlobPatterns(config.include);
+  validateGlobPatterns(config.exclude);
+
   const matches = await glob(config.include, {
     cwd: absPath,
     ignore: config.exclude,
@@ -55,6 +66,10 @@ export async function collectFiles(
 
   for (const match of matches) {
     if (files.length >= config.maxFiles) break;
+
+    // Ensure resolved path stays within the target directory
+    const rel = relative(absPath, match);
+    if (rel.startsWith("..") || resolve(rel) === rel) continue;
 
     try {
       const fileStat = statSync(match);

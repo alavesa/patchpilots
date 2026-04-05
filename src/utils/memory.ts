@@ -124,7 +124,11 @@ export function updateMemory(
 }
 
 function sanitizeMemoryField(value: string): string {
-  return value.replace(/[<>]/g, "").slice(0, 200);
+  return value
+    .replace(/[<>]/g, "")
+    .replace(/[\x00-\x1f\x7f]/g, "") // control chars
+    .replace(/[`*_~\[\]]/g, "")       // markdown-sensitive chars
+    .slice(0, 200);
 }
 
 export function buildMemoryContext(memory: ProjectMemory): string {
