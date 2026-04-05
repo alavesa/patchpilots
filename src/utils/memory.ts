@@ -1,8 +1,27 @@
 import { readFileSync, writeFileSync, existsSync, statSync } from "node:fs";
 import { resolve, dirname } from "node:path";
+import { z } from "zod";
 import { log } from "./logger.js";
 
 const MEMORY_FILE = ".patchpilots-memory.json";
+
+const memoryFindingSchema = z.object({
+  file: z.string(),
+  title: z.string(),
+  severity: z.string(),
+  category: z.string(),
+  status: z.enum(["open", "fixed"]),
+  firstSeen: z.string(),
+  lastSeen: z.string(),
+  occurrences: z.number(),
+});
+
+const projectMemorySchema = z.object({
+  projectPath: z.string(),
+  lastRun: z.string(),
+  totalRuns: z.number(),
+  findings: z.array(memoryFindingSchema),
+});
 
 export interface MemoryFinding {
   file: string;
@@ -39,7 +58,8 @@ export function loadMemory(targetPath: string): ProjectMemory {
   }
 
   try {
-    return JSON.parse(readFileSync(memPath, "utf-8"));
+    const raw = JSON.parse(readFileSync(memPath, "utf-8"));
+    return projectMemorySchema.parse(raw);
   } catch {
     log.warn('Memory file is corrupt, starting fresh: ' + memPath);
     return {
@@ -103,6 +123,10 @@ export function updateMemory(
   return updated;
 }
 
+function sanitizeMemoryField(value: string): string {
+  return value.replace(/[<>]/g, "").slice(0, 200);
+}
+
 export function buildMemoryContext(memory: ProjectMemory): string {
   if (memory.totalRuns === 0 || memory.findings.length === 0) return "";
 
@@ -111,12 +135,16 @@ export function buildMemoryContext(memory: ProjectMemory): string {
   const openCount = memory.findings.filter(f => f.status === "open").length;
 
   const lines: string[] = [];
-  lines.push(`\n## Project Memory (${memory.totalRuns} previous runs)\n`);
+  lines.push(`\n<MEMORY_CONTEXT>`);
+  lines.push(`## Project Memory (${memory.totalRuns} previous runs)\n`);
 
   if (recurring.length > 0) {
     lines.push("### Recurring issues (found multiple times — pay extra attention):");
     for (const f of recurring) {
-      lines.push(`- **${f.title}** in \`${f.file}\` — found ${f.occurrences} times since ${f.firstSeen.split("T")[0]} [${f.severity}]`);
+      const title = sanitizeMemoryField(f.title);
+      const file = sanitizeMemoryField(f.file);
+      const severity = sanitizeMemoryField(f.severity);
+      lines.push(`- **${title}** in \`${file}\` — found ${f.occurrences} times since ${f.firstSeen.split("T")[0]} [${severity}]`);
     }
     lines.push("");
   }
@@ -124,12 +152,16 @@ export function buildMemoryContext(memory: ProjectMemory): string {
   if (recentlyFixed.length > 0) {
     lines.push("### Recently fixed (verify these stay fixed):");
     for (const f of recentlyFixed) {
-      lines.push(`- ~~${f.title}~~ in \`${f.file}\` — was ${f.severity}, now fixed`);
+      const title = sanitizeMemoryField(f.title);
+      const file = sanitizeMemoryField(f.file);
+      const severity = sanitizeMemoryField(f.severity);
+      lines.push(`- ~~${title}~~ in \`${file}\` — was ${severity}, now fixed`);
     }
     lines.push("");
   }
 
   lines.push(`Open issues: ${openCount} | Total tracked: ${memory.findings.length}`);
+  lines.push(`</MEMORY_CONTEXT>`);
   lines.push("");
 
   return lines.join("\n");

@@ -4,6 +4,17 @@ import type { AgentContext, AgentResult, FileContent } from "../types/index.js";
 import { log } from "../utils/logger.js";
 import { type ModelRoutingConfig, DEFAULT_ROUTING, routeFiles, tierToModel, logRoutingSummary } from "../utils/model-router.js";
 
+export function wrapUntrustedFile(path: string, language: string, content: string): string {
+  return [
+    `## File: ${path} (${language})`,
+    `<UNTRUSTED_FILE path="${path}">`,
+    "```" + language,
+    content,
+    "```",
+    "</UNTRUSTED_FILE>\n",
+  ].join("\n");
+}
+
 export abstract class BaseAgent<T = unknown> {
   abstract readonly name: string;
   abstract readonly description: string;
