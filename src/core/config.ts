@@ -1,8 +1,9 @@
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, statSync, chmodSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { homedir } from "node:os";
 import { z } from "zod";
 import { DEFAULT_CONFIG, type PatchPilotsConfig } from "../types/index.js";
+import { log } from "../utils/logger.js";
 
 const customAgentSchema = z.object({
   name: z.string(),
@@ -81,16 +82,42 @@ export function loadConfig(targetPath: string, cliOptions: CLIOptions = {}): Pat
     ? configSchema.parse(JSON.parse(readFileSync(resolve(cliOptions.config), "utf-8")))
     : loadFileConfig(targetPath);
 
-  const apiKey =
-    fileConfig.apiKey ??
-    globalConfig.apiKey ??
-    process.env.ANTHROPIC_API_KEY ??
-    "";
+  // Prefer env var (safer) over config files (plaintext on disk)
+  let apiKey = process.env.ANTHROPIC_API_KEY ?? "";
+  let keySource: "env" | "file" | "global" = "env";
+
+  if (!apiKey && fileConfig.apiKey) {
+    apiKey = fileConfig.apiKey;
+    keySource = "file";
+  }
+  if (!apiKey && globalConfig.apiKey) {
+    apiKey = globalConfig.apiKey;
+    keySource = "global";
+  }
 
   if (!apiKey) {
     throw new Error(
       "Missing API key. Set ANTHROPIC_API_KEY environment variable or add apiKey to .patchpilots.json"
     );
+  }
+
+  if (keySource !== "env") {
+    const configPath = keySource === "global"
+      ? resolve(homedir(), ".patchpilots.json")
+      : findConfigFile(targetPath);
+    log.warn("API key loaded from config file. For better security, use ANTHROPIC_API_KEY environment variable instead.");
+    // Ensure config file has restrictive permissions (owner-only read/write)
+    if (configPath) {
+      try {
+        const mode = statSync(configPath).mode & 0o777;
+        if (mode !== 0o600) {
+          chmodSync(configPath, 0o600);
+          log.verbose(`Set ${configPath} permissions to 600 (owner-only).`);
+        }
+      } catch {
+        // Skip if permissions can't be changed
+      }
+    }
   }
 
   const merged = {
