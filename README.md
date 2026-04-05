@@ -45,7 +45,7 @@ Built for solo developers and hobby projects — when you don't have a team to r
 
 </div>
 
-## Use it 3 ways
+## Use it 4 ways
 
 ### `npx` — no install, one-off
 ```bash
@@ -65,7 +65,22 @@ patchpilots audit ./src
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
-All three use the same package. The CLI runs locally, the Action runs on GitHub's servers. Same agents, same output.
+### MCP Server — security scanning inside your IDE
+```json
+{
+  "mcpServers": {
+    "patchpilots": {
+      "command": "npx",
+      "args": ["-y", "patchpilots-mcp"],
+      "env": { "ANTHROPIC_API_KEY": "sk-ant-..." }
+    }
+  }
+}
+```
+
+Works with Claude Code, Cursor, VS Code, and any MCP-compatible IDE. Exposes the security agent and a supply chain dependency scanner as conversational tools — ask your AI assistant to scan your code and it calls PatchPilots automatically. See [patchpilots-mcp](https://github.com/alavesa/patchpilots-mcp) for setup details.
+
+The CLI and Action give you all 8 agents. The MCP server brings security scanning into your editor conversation. Same analysis, different delivery.
 
 ## The Killer Feature
 
@@ -438,7 +453,7 @@ Adding a new agent is one file + three methods.
 - [ ] 💸 **CostPilot** — estimates Claude API spend before running the full audit
 
 ### Future platforms
-- [ ] 🖥️ **VS Code extension** — same crew, lives in your editor
+- [x] 🔌 **MCP Server** — security agent inside Claude Code, Cursor, and any MCP-compatible IDE ([patchpilots-mcp](https://github.com/alavesa/patchpilots-mcp))
 - [ ] 🌐 **Web UI** — drag and drop a repo, get a report. No CLI needed
 
 ## License
