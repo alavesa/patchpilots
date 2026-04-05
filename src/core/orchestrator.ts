@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync, copyFileSync } from "node:fs";
-import { resolve, relative, isAbsolute } from "node:path";
-import { execSync } from "node:child_process";
+import { resolve, relative, isAbsolute, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { execFileSync } from "node:child_process";
 import { LLMClient } from "./llm-client.js";
 import { ReviewerAgent } from "../agents/reviewer.js";
 import { CoderAgent } from "../agents/coder.js";
@@ -118,10 +119,13 @@ export class Orchestrator {
   private runTypeScriptCheck(targetPath: string): ReviewResult["findings"] {
     const absPath = resolve(targetPath);
     try {
-      execSync("npx tsc --noEmit 2>&1", { cwd: absPath, encoding: "utf-8", timeout: 30000 });
+      // Resolve tsc from PatchPilots' own node_modules to prevent binary planting
+      const ownDir = dirname(fileURLToPath(import.meta.url));
+      const tscPath = resolve(ownDir, "../../node_modules/.bin/tsc");
+      execFileSync(tscPath, ["--noEmit"], { cwd: absPath, encoding: "utf-8", timeout: 30000, stdio: ["pipe", "pipe", "pipe"] });
       return [];
     } catch (err: unknown) {
-      const output = (err as { stdout?: string }).stdout ?? "";
+      const output = (err as { stdout?: string; stderr?: string }).stdout ?? (err as { stderr?: string }).stderr ?? "";
       if (!output.trim()) return [];
 
       const findings: ReviewResult["findings"] = [];

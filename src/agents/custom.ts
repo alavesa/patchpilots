@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { BaseAgent, wrapUntrustedFile } from "./base-agent.js";
 import type { AgentContext } from "../types/index.js";
@@ -38,12 +39,14 @@ export class CustomAgent extends BaseAgent<ReviewResult> {
     return customResultSchema;
   }
 
+  private boundary = randomBytes(8).toString("hex");
+
   protected getSystemPrompt(): string {
     return `You are a specialized code reviewer. Your job is to review code based on the following rules and guidelines:
 
-<REVIEW_RULES>
-${this.userPrompt.replace(/<\/REVIEW_RULES>/gi, "")}
-</REVIEW_RULES>
+<RULES_${this.boundary}>
+${this.userPrompt}
+</RULES_${this.boundary}>
 
 For each issue found, classify severity as:
 - "critical" — must fix, violates the rules

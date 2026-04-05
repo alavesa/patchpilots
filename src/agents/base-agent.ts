@@ -11,11 +11,12 @@ function escapeXmlAttr(value: string): string {
 export function wrapUntrustedFile(path: string, language: string, content: string): string {
   const safePath = escapeXmlAttr(path);
   const safeLang = escapeXmlAttr(language);
+  const safeContent = content.replace(/<\/UNTRUSTED_FILE>/gi, "<\\/UNTRUSTED_FILE>");
   return [
     `## File: ${safePath} (${safeLang})`,
     `<UNTRUSTED_FILE path="${safePath}">`,
     "```" + safeLang,
-    content,
+    safeContent,
     "```",
     "</UNTRUSTED_FILE>\n",
   ].join("\n");
