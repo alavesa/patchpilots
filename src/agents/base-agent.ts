@@ -102,7 +102,7 @@ export abstract class BaseAgent<T = unknown> {
           log.verbose(`  ${tier} batch ${i + 1}/${batches.length} (${batches[i].length} files → ${model})`);
 
           const batchContext: AgentContext = { ...context, files: batches[i] };
-          const result = await this.executeWithRetry(batchContext, onToken, model);
+          const result = await this.executeWithRetry(batchContext, mergeResults, onToken, model);
           allResults.push(result.data as T);
           totalInput += result.tokensUsed.input;
           totalOutput += result.tokensUsed.output;
@@ -127,7 +127,7 @@ export abstract class BaseAgent<T = unknown> {
 
     // No batching needed for small file sets
     if (files.length <= batchSize) {
-      return this.executeWithRetry(context, onToken);
+      return this.executeWithRetry(context, mergeResults, onToken);
     }
 
     // Split into batches
@@ -150,7 +150,7 @@ export abstract class BaseAgent<T = unknown> {
         files: batches[i],
       };
 
-      const result = await this.executeWithRetry(batchContext, onToken);
+      const result = await this.executeWithRetry(batchContext, mergeResults, onToken);
       allResults.push(result.data as T);
       totalInput += result.tokensUsed.input;
       totalOutput += result.tokensUsed.output;
@@ -169,6 +169,7 @@ export abstract class BaseAgent<T = unknown> {
 
   private async executeWithRetry(
     context: AgentContext,
+    mergeResults: (results: T[]) => T,
     onToken?: (text: string) => void,
     modelOverride?: string,
   ): Promise<AgentResult> {
@@ -184,21 +185,24 @@ export abstract class BaseAgent<T = unknown> {
 
         const firstHalf = await this.executeWithRetry(
           { ...context, files: context.files.slice(0, half) },
+          mergeResults,
           onToken,
           modelOverride,
         );
         const secondHalf = await this.executeWithRetry(
           { ...context, files: context.files.slice(half) },
+          mergeResults,
           onToken,
           modelOverride,
         );
 
-        // Merge the two results by combining their raw data
+        const merged = mergeResults([firstHalf.data as T, secondHalf.data as T]);
+
         return {
           agentName: this.name,
           success: true,
-          data: firstHalf.data, // Caller handles merging via executeBatched
-          rawResponse: firstHalf.rawResponse,
+          data: merged,
+          rawResponse: JSON.stringify(merged),
           tokensUsed: {
             input: firstHalf.tokensUsed.input + secondHalf.tokensUsed.input,
             output: firstHalf.tokensUsed.output + secondHalf.tokensUsed.output,
